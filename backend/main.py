@@ -4,10 +4,18 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
+import logging
 from dotenv import load_dotenv
 
 from app.database import create_tables
 from app.routes import postgres_router, dataset_router, validation_router
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -16,8 +24,10 @@ load_dotenv()
 async def lifespan(app: FastAPI):
     # Create database tables on startup
     create_tables()
+    logger.info("Database tables created")
     yield
     # Clean up resources if needed
+    logger.info("Application shutting down")
 
 app = FastAPI(
     title="Data Validator API",
@@ -36,10 +46,13 @@ if not allowed_origins or allowed_origins[0] == "":
         "http://localhost:5174",  # Another common Vite port
         "http://127.0.0.1:5174",
         "http://localhost:8080",  # Added for current Vite server
-        "http://127.0.0.1:8080"   # Added for current Vite server
+        "http://127.0.0.1:8080",   # Added for current Vite server
+        "http://localhost",
+        "http://127.0.0.1",
+        "*"  # Allow all origins as fallback - you may want to remove this in production
     ]
 
-print(f"Configuring CORS with allowed origins: {allowed_origins}")
+logger.info(f"Configuring CORS with allowed origins: {allowed_origins}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,6 +60,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include routers
@@ -58,15 +72,24 @@ app.include_router(validation_router, prefix="/api/validation", tags=["Validatio
 async def root():
     return {"message": "Welcome to the Data Validator API"}
 
+@app.get("/api/health")
+async def health_check():
+    return {"status": "healthy", "api": "online"}
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    print(f"Received request: {request.method} {request.url}")
+    client_host = request.client.host if request.client else "unknown"
+    logger.info(f"Received request: {request.method} {request.url} from {client_host}")
     origin = request.headers.get('origin')
-    print(f"Headers: Origin: {origin}")
+    logger.info(f"Headers: Origin: {origin}")
     
-    response = await call_next(request)
-    print(f"Response status: {response.status_code}")
-    return response
+    try:
+        response = await call_next(request)
+        logger.info(f"Response status: {response.status_code}")
+        return response
+    except Exception as e:
+        logger.error(f"Request error: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

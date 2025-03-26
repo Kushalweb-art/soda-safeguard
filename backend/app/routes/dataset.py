@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
 import uuid
@@ -11,6 +11,7 @@ import io
 import os
 import shutil
 import traceback
+import logging
 
 from app.database import get_db
 from app.models.dataset import CsvDataset
@@ -22,22 +23,28 @@ from app.schemas.dataset import (
 
 router = APIRouter()
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Create a directory to store uploaded CSV files
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-print(f"Upload directory created/verified at: {UPLOAD_DIR}")
+logger.info(f"Upload directory created/verified at: {UPLOAD_DIR}")
 
 @router.get("/csv", response_model=ApiResponse)
 async def get_all_csv_datasets(db: Session = Depends(get_db)):
     """Get all CSV datasets"""
     try:
+        logger.info("Getting all CSV datasets")
         datasets = db.query(CsvDataset).order_by(CsvDataset.uploaded_at.desc()).all()
+        logger.info(f"Retrieved {len(datasets)} CSV datasets")
         return {
             "success": True,
             "data": [dataset.to_dict() for dataset in datasets]
         }
     except Exception as e:
-        print(f"Error in get_all_csv_datasets: {str(e)}")
+        logger.error(f"Error in get_all_csv_datasets: {str(e)}")
         traceback.print_exc()
         return {
             "success": False,
@@ -48,19 +55,22 @@ async def get_all_csv_datasets(db: Session = Depends(get_db)):
 async def get_csv_dataset_by_id(dataset_id: str, db: Session = Depends(get_db)):
     """Get a CSV dataset by ID"""
     try:
+        logger.info(f"Getting CSV dataset with ID: {dataset_id}")
         dataset = db.query(CsvDataset).filter(CsvDataset.id == dataset_id).first()
         if not dataset:
+            logger.warning(f"Dataset not found: {dataset_id}")
             return {
                 "success": False,
                 "error": "Dataset not found"
             }
         
+        logger.info(f"Retrieved dataset: {dataset.name}")
         return {
             "success": True,
             "data": dataset.to_dict()
         }
     except Exception as e:
-        print(f"Error in get_csv_dataset_by_id: {str(e)}")
+        logger.error(f"Error in get_csv_dataset_by_id: {str(e)}")
         traceback.print_exc()
         return {
             "success": False,
@@ -69,14 +79,20 @@ async def get_csv_dataset_by_id(dataset_id: str, db: Session = Depends(get_db)):
 
 @router.post("/csv/upload", response_model=ApiResponse)
 async def upload_csv_file(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
     """Upload a CSV file and parse it"""
     try:
-        print(f"Received file upload: {file.filename}")
+        client_host = request.client.host if request.client else "unknown"
+        logger.info(f"Received file upload from {client_host}: {file.filename}")
+        
+        # Ensure upload directory exists
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
         
         if not file.filename.endswith('.csv'):
+            logger.warning(f"Invalid file type: {file.filename}")
             return {
                 "success": False,
                 "error": "File must be a CSV"
@@ -87,16 +103,24 @@ async def upload_csv_file(
         
         # Create a path to store the file
         file_path = os.path.join(UPLOAD_DIR, f"{dataset_id}.csv")
-        print(f"Saving file to: {file_path}")
+        logger.info(f"Saving file to: {file_path}")
         
         # Read file content
         contents = await file.read()
+        
+        # Check if file is empty
+        if len(contents) == 0:
+            logger.warning("Uploaded file is empty")
+            return {
+                "success": False,
+                "error": "Uploaded file is empty"
+            }
         
         # Save the file to disk
         with open(file_path, "wb") as f:
             f.write(contents)
         
-        print(f"File saved. Reading file with pandas.")
+        logger.info(f"File saved. Reading file with pandas.")
         
         # Parse CSV using pandas
         try:
@@ -111,7 +135,7 @@ async def upload_csv_file(
             # Get preview data (first few rows)
             preview_data = df.head(5).to_dict(orient='records')
             
-            print(f"File parsed. Creating dataset object: {dataset_id}")
+            logger.info(f"File parsed. Creating dataset object: {dataset_id}")
             
             # Create dataset object
             new_dataset = CsvDataset(
@@ -130,22 +154,26 @@ async def upload_csv_file(
             db.commit()
             db.refresh(new_dataset)
             
-            print(f"Dataset created successfully: {dataset_id}")
+            logger.info(f"Dataset created successfully: {dataset_id}")
             
             return {
                 "success": True,
                 "data": new_dataset.to_dict()
             }
         except Exception as e:
-            print(f"Error parsing CSV file: {str(e)}")
+            logger.error(f"Error parsing CSV file: {str(e)}")
             traceback.print_exc()
+            # Remove the file if parsing failed
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                logger.info(f"Removed invalid file: {file_path}")
             return {
                 "success": False,
                 "error": f"Error parsing CSV file: {str(e)}"
             }
             
     except Exception as e:
-        print(f"Error processing CSV file: {str(e)}")
+        logger.error(f"Error processing CSV file: {str(e)}")
         traceback.print_exc()
         return {
             "success": False,
@@ -161,16 +189,19 @@ async def get_csv_dataset_data(
 ):
     """Get data from a CSV dataset with pagination"""
     try:
+        logger.info(f"Getting data for CSV dataset: {dataset_id}, limit: {limit}, offset: {offset}")
         dataset = db.query(CsvDataset).filter(CsvDataset.id == dataset_id).first()
         if not dataset:
+            logger.warning(f"Dataset not found: {dataset_id}")
             return {
                 "success": False,
                 "error": "Dataset not found"
             }
         
-        print(f"Reading CSV file: {dataset.file_path}")
+        logger.info(f"Reading CSV file: {dataset.file_path}")
         
         if not os.path.exists(dataset.file_path):
+            logger.error(f"CSV file not found on disk: {dataset.file_path}")
             return {
                 "success": False,
                 "error": "CSV file not found on disk"
@@ -181,6 +212,7 @@ async def get_csv_dataset_data(
         
         # Get total rows
         total_rows = len(df)
+        logger.info(f"CSV has {total_rows} rows total")
         
         # Apply pagination
         df_page = df.iloc[offset:offset+limit]
@@ -188,6 +220,7 @@ async def get_csv_dataset_data(
         # Convert to dict
         data = df_page.to_dict(orient='records')
         
+        logger.info(f"Returning {len(data)} rows from offset {offset}")
         return {
             "success": True,
             "data": {
@@ -197,7 +230,7 @@ async def get_csv_dataset_data(
             }
         }
     except Exception as e:
-        print(f"Error reading CSV data: {str(e)}")
+        logger.error(f"Error reading CSV data: {str(e)}")
         traceback.print_exc()
         return {
             "success": False,

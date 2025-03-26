@@ -1,6 +1,7 @@
 
 import { ApiResponse, CsvDataset } from '@/types';
-import { fetchApi, simulateLatency, handleError, API_BASE_URL } from './core';
+import { fetchApi, handleError, API_BASE_URL } from './core';
+import { toast } from '@/hooks/use-toast';
 
 export const fetchCsvDatasets = async (): Promise<ApiResponse<CsvDataset[]>> => {
   try {
@@ -22,6 +23,10 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
     const url = `${API_BASE_URL}/datasets/csv/upload`;
     console.log(`Making upload request to: ${url}`);
     
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout for uploads
+    
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
@@ -29,7 +34,11 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
         'Accept': 'application/json',
       },
       credentials: 'include',
+      signal: controller.signal,
     });
+    
+    // Clear timeout
+    clearTimeout(timeoutId);
     
     console.log('Upload response status:', response.status);
     
@@ -43,6 +52,12 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
       }
       
       console.error(errorMessage);
+      toast({
+        title: 'Upload Failed',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      
       return {
         success: false,
         error: errorMessage,
@@ -52,8 +67,30 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
     const data = await response.json();
     console.log('CSV upload successful, response:', data);
     
+    toast({
+      title: 'Upload Successful',
+      description: `File ${file.name} was uploaded successfully.`,
+      variant: 'default',
+    });
+    
     return data;
-  } catch (error) {
+  } catch (error: any) {
+    // Check if the error is an AbortError (timeout)
+    if (error.name === 'AbortError') {
+      const errorMessage = 'Upload timed out. The file may be too large or the server is busy.';
+      console.error(errorMessage);
+      toast({
+        title: 'Upload Timeout',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+    
     console.error('CSV upload failed:', error);
     return handleError(error);
   }

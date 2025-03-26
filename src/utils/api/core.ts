@@ -2,7 +2,7 @@
 import { ApiResponse } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
-// API base URL - ensure this matches your backend server
+// API base URL - set to match exactly where your backend is running
 export const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 // Helper function to simulate API latency in development for smoother UX
@@ -102,6 +102,16 @@ export const fetchApi = async <T>(
       return {
         success: false,
         error: 'Request timed out. Please try again.',
+      };
+    }
+    
+    // Improved error logging for network errors
+    if (error.message && error.message.includes('Failed to fetch')) {
+      console.error(`Network error for ${endpoint}:`, error);
+      console.error(`API_BASE_URL is set to: ${API_BASE_URL}`);
+      return {
+        success: false,
+        error: `Network error. Please ensure the backend server is running at ${API_BASE_URL.split('/api')[0]}`,
       };
     }
     

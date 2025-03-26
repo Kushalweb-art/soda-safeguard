@@ -37,26 +37,50 @@ export const fetchApi = async <T>(
     await simulateLatency();
     
     const url = `${API_BASE_URL}${endpoint}`;
-    console.log(`Making API request to: ${url}`);
+    console.log(`Making API request to: ${url}`, {
+      method: options.method || 'GET',
+      headers: options.headers,
+    });
     
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      credentials: 'include', // Include credentials for cross-origin requests
       ...options,
     });
     
+    console.log(`Response status from ${endpoint}:`, response.status);
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error(`API error (${response.status}): ${errorData.error || response.statusText}`);
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        console.error('Could not parse error response:', e);
+        errorData = {};
+      }
+      
+      const errorMessage = errorData.error || `Error: ${response.status} ${response.statusText}`;
+      console.error(`API error (${response.status}):`, errorMessage);
+      
       return {
         success: false,
-        error: errorData.error || `Error: ${response.status} ${response.statusText}`,
+        error: errorMessage,
       };
     }
     
-    const data = await response.json();
+    const contentType = response.headers.get('content-type');
+    let data;
+    
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      console.warn(`Response is not JSON. Content-Type: ${contentType}`);
+      data = { success: true };
+    }
+    
     console.log(`API response from ${endpoint}:`, data);
     
     return data;

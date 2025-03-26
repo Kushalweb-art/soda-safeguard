@@ -3,7 +3,13 @@ import { ApiResponse, CsvDataset } from '@/types';
 import { fetchApi, simulateLatency, handleError, API_BASE_URL } from './core';
 
 export const fetchCsvDatasets = async (): Promise<ApiResponse<CsvDataset[]>> => {
-  return fetchApi<CsvDataset[]>('/datasets/csv');
+  try {
+    console.log('Fetching CSV datasets...');
+    return await fetchApi<CsvDataset[]>('/datasets/csv');
+  } catch (error) {
+    console.error('Error fetching CSV datasets:', error);
+    return handleError(error);
+  }
 };
 
 export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>> => {
@@ -24,6 +30,8 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
       },
       credentials: 'include',
     });
+    
+    console.log('Upload response status:', response.status);
     
     if (!response.ok) {
       let errorMessage = `Upload error (${response.status}): ${response.statusText}`;
@@ -56,5 +64,11 @@ export const fetchCsvDatasetData = async (
   limit: number = 100,
   offset: number = 0
 ): Promise<ApiResponse<{rows: any[], totalRows: number, columns: string[]}>> => {
-  return fetchApi<{rows: any[], totalRows: number, columns: string[]}>(`/datasets/csv/${datasetId}/data?limit=${limit}&offset=${offset}`);
+  try {
+    console.log(`Fetching CSV dataset data for ID: ${datasetId}, limit: ${limit}, offset: ${offset}`);
+    return await fetchApi<{rows: any[], totalRows: number, columns: string[]}>(`/datasets/csv/${datasetId}/data?limit=${limit}&offset=${offset}`);
+  } catch (error) {
+    console.error('Error fetching CSV dataset data:', error);
+    return handleError(error);
+  }
 };

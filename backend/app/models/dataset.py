@@ -2,6 +2,7 @@
 from sqlalchemy import Column, String, Integer, DateTime, JSON
 from sqlalchemy.sql import func
 from app.database import Base
+import json
 
 class CsvDataset(Base):
     __tablename__ = "csv_datasets"
@@ -16,6 +17,7 @@ class CsvDataset(Base):
     preview_data = Column(JSON, nullable=False)
     
     def to_dict(self):
+        """Convert the model to a dictionary for API response"""
         return {
             "id": self.id,
             "name": self.name,

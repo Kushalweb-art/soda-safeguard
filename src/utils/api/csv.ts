@@ -91,6 +91,22 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
       };
     }
     
+    // Check if the error is related to connectivity
+    if (error.message && error.message.includes('Failed to fetch')) {
+      const errorMessage = 'Network error. Please check your connection and the backend server.';
+      console.error(errorMessage, error);
+      toast({
+        title: 'Connection Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+    
     console.error('CSV upload failed:', error);
     return handleError(error);
   }

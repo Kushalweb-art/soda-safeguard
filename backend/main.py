@@ -41,15 +41,23 @@ allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
 if not allowed_origins or allowed_origins[0] == "":
     allowed_origins = [
         "http://localhost:3000",
+        "https://localhost:3000",
         "http://localhost:5173",  # Vite dev server
+        "https://localhost:5173",
         "http://127.0.0.1:5173",
+        "https://127.0.0.1:5173",
         "http://localhost:5174",  # Another common Vite port
+        "https://localhost:5174",
         "http://127.0.0.1:5174",
+        "https://127.0.0.1:5174",
         "http://localhost:8080",  # Added for current Vite server
-        "http://127.0.0.1:8080",   # Added for current Vite server
+        "https://localhost:8080",
+        "http://127.0.0.1:8080",  # Added for current Vite server
+        "https://127.0.0.1:8080",
         "http://localhost",
+        "https://localhost",
         "http://127.0.0.1",
-        "*"  # Allow all origins as fallback - you may want to remove this in production
+        "https://127.0.0.1",
     ]
 
 logger.info(f"Configuring CORS with allowed origins: {allowed_origins}")
@@ -79,9 +87,11 @@ async def health_check():
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     client_host = request.client.host if request.client else "unknown"
-    logger.info(f"Received request: {request.method} {request.url} from {client_host}")
+    logger.info(f"Received request: {request.method} {request.url.path} from {client_host}")
     origin = request.headers.get('origin')
     logger.info(f"Headers: Origin: {origin}")
+    protocol = "https" if request.url.scheme == "https" else "http"
+    logger.info(f"Protocol: {protocol}")
     
     try:
         response = await call_next(request)

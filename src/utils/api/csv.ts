@@ -8,8 +8,6 @@ export const fetchCsvDatasets = async (): Promise<ApiResponse<CsvDataset[]>> => 
 
 export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>> => {
   try {
-    await simulateLatency();
-    
     console.log(`Uploading CSV file: ${file.name} (${file.size} bytes)`);
     
     const formData = new FormData();
@@ -21,12 +19,9 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
-      // Adding these headers explicitly to ensure proper CORS handling
       headers: {
         'Accept': 'application/json',
-        // Don't set Content-Type with FormData as the browser will set it with the boundary
       },
-      // Include credentials if your API requires them
       credentials: 'include',
     });
     
@@ -54,4 +49,12 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
     console.error('CSV upload failed:', error);
     return handleError(error);
   }
+};
+
+export const fetchCsvDatasetData = async (
+  datasetId: string,
+  limit: number = 100,
+  offset: number = 0
+): Promise<ApiResponse<{rows: any[], totalRows: number, columns: string[]}>> => {
+  return fetchApi<{rows: any[], totalRows: number, columns: string[]}>(`/datasets/csv/${datasetId}/data?limit=${limit}&offset=${offset}`);
 };

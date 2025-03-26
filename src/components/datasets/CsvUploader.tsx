@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { FileSpreadsheet, Upload, X, Table, File } from 'lucide-react';
+import { FileSpreadsheet, Upload, X, Table, File, Check, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadCsvFile } from '@/utils/api';
 import { CsvDataset } from '@/types';
+import { Progress } from '@/components/ui/progress';
 
 interface CsvUploaderProps {
   onUploadComplete: (dataset: CsvDataset) => void;
@@ -19,6 +20,8 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onUploadComplete }) => {
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -28,10 +31,24 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onUploadComplete }) => {
   };
   
   const validateAndSetFile = (selectedFile: File) => {
+    setError(null);
+    
     if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
+      setError('Please select a CSV file');
       toast({
         title: 'Invalid file type',
         description: 'Please select a CSV file',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Check file size (limit to 10MB)
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      setError('File size exceeds 10MB limit');
+      toast({
+        title: 'File too large',
+        description: 'Please select a file smaller than 10MB',
         variant: 'destructive',
       });
       return;
@@ -66,33 +83,73 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onUploadComplete }) => {
   
   const handleCancelUpload = () => {
     setFile(null);
+    setError(null);
+    setProgress(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+  
+  const simulateProgress = () => {
+    // Simulate upload progress
+    setProgress(0);
+    const interval = setInterval(() => {
+      setProgress(prev => {
+        const newProgress = prev + Math.random() * 10;
+        if (newProgress >= 95) {
+          clearInterval(interval);
+          return 95; // Wait for actual completion to set 100%
+        }
+        return newProgress;
+      });
+    }, 300);
+    
+    return () => clearInterval(interval);
   };
   
   const handleUpload = async () => {
     if (!file) return;
     
     setUploading(true);
+    setError(null);
+    
+    // Start progress simulation
+    const clearProgressInterval = simulateProgress();
+    
     try {
       const response = await uploadCsvFile(file);
+      
+      // Clear the progress simulation
+      clearProgressInterval();
+      
       if (response.success && response.data) {
+        setProgress(100);
+        setTimeout(() => {
+          toast({
+            title: 'Upload successful',
+            description: `${file.name} has been uploaded successfully`,
+          });
+          onUploadComplete(response.data);
+        }, 500);
+      } else {
+        setError(response.error || 'Upload failed');
         toast({
-          title: 'Upload successful',
-          description: `${file.name} has been uploaded`,
+          title: 'Upload failed',
+          description: response.error || 'There was a problem uploading your file',
+          variant: 'destructive',
         });
-        onUploadComplete(response.data);
       }
     } catch (error) {
+      clearProgressInterval();
+      const errorMsg = (error as Error).message || 'There was a problem uploading your file';
+      setError(errorMsg);
       toast({
         title: 'Upload failed',
-        description: 'There was a problem uploading your file',
+        description: errorMsg,
         variant: 'destructive',
       });
     } finally {
       setUploading(false);
-      setFile(null);
     }
   };
   
@@ -118,6 +175,7 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onUploadComplete }) => {
             flex flex-col items-center justify-center
             ${dragging ? 'border-primary bg-primary/5' : 'border-muted'}
             ${file ? 'bg-muted/10' : 'bg-muted/5 hover:bg-muted/10'}
+            ${error ? 'border-red-500 bg-red-50/10' : ''}
           `}
         >
           <input
@@ -129,6 +187,19 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onUploadComplete }) => {
           />
           
           <AnimatePresence mode="wait">
+            {error && (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="bg-red-50 text-red-500 p-3 rounded-md mb-4 flex items-center w-full"
+              >
+                <AlertCircle className="h-5 w-5 mr-2" />
+                <span>{error}</span>
+              </motion.div>
+            )}
+            
             {file ? (
               <motion.div
                 key="file-selected"
@@ -144,12 +215,42 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onUploadComplete }) => {
                 <p className="text-muted-foreground text-sm mb-4">
                   {(file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
+                
+                {uploading && (
+                  <div className="w-full mb-4">
+                    <Progress value={progress} className="h-2 mb-1" />
+                    <p className="text-xs text-muted-foreground text-right">
+                      {Math.round(progress)}%
+                    </p>
+                  </div>
+                )}
+                
                 <div className="flex items-center gap-3">
-                  <Button size="sm" variant="outline" onClick={handleCancelUpload}>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={handleCancelUpload}
+                    disabled={uploading}
+                  >
                     <X className="h-4 w-4 mr-1" /> Cancel
                   </Button>
-                  <Button size="sm" onClick={handleUpload} disabled={uploading}>
-                    {uploading ? 'Uploading...' : 'Upload'}
+                  <Button 
+                    size="sm" 
+                    onClick={handleUpload} 
+                    disabled={uploading}
+                    className={progress === 100 ? "bg-green-600 hover:bg-green-700" : ""}
+                  >
+                    {progress === 100 ? (
+                      <>
+                        <Check className="h-4 w-4 mr-1" /> Uploaded
+                      </>
+                    ) : uploading ? (
+                      'Uploading...'
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-1" /> Upload
+                      </>
+                    )}
                   </Button>
                 </div>
               </motion.div>
@@ -176,6 +277,15 @@ const CsvUploader: React.FC<CsvUploaderProps> = ({ onUploadComplete }) => {
           </AnimatePresence>
         </div>
       </CardContent>
+      <CardFooter className="flex-col items-start pt-0">
+        <div className="text-sm text-muted-foreground mt-2">
+          <ul className="list-disc ml-5 space-y-1">
+            <li>File must be in CSV format</li>
+            <li>Maximum file size: 10MB</li>
+            <li>Make sure the CSV has a header row</li>
+          </ul>
+        </div>
+      </CardFooter>
     </Card>
   );
 };

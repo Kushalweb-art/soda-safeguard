@@ -1,13 +1,21 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CsvDataset, PostgresConnection } from '@/types';
-import { Database, FileSpreadsheet, Calendar, Table, ArrowRight } from 'lucide-react';
+import { Database, FileSpreadsheet, Calendar, Table, ArrowRight, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog';
+import CsvDataViewer from './CsvDataViewer';
 
 interface DatasetListProps {
   postgresConnections: PostgresConnection[];
@@ -16,9 +24,18 @@ interface DatasetListProps {
 
 const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatasets }) => {
   const navigate = useNavigate();
+  const [selectedDataset, setSelectedDataset] = useState<CsvDataset | null>(null);
   
   const formatDate = (dateString: string) => {
     return format(new Date(dateString), 'MMM d, yyyy');
+  };
+  
+  const handlePreviewClick = (dataset: CsvDataset) => {
+    setSelectedDataset(dataset);
+  };
+  
+  const handleClosePreview = () => {
+    setSelectedDataset(null);
   };
   
   return (
@@ -154,15 +171,27 @@ const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatas
                           </div>
                         </div>
                         
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-primary mt-3 p-0 h-auto"
-                          onClick={() => navigate(`/validation?datasetId=${dataset.id}&type=csv`)}
-                        >
-                          Validate this data
-                          <ArrowRight className="ml-1 h-3 w-3" />
-                        </Button>
+                        <div className="flex items-center gap-3 mt-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-primary p-0 h-auto"
+                            onClick={() => handlePreviewClick(dataset)}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            Preview
+                          </Button>
+                          
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-primary p-0 h-auto"
+                            onClick={() => navigate(`/validation?datasetId=${dataset.id}&type=csv`)}
+                          >
+                            Validate
+                            <ArrowRight className="ml-1 h-3 w-3" />
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   </motion.div>
@@ -184,6 +213,25 @@ const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatas
           </CardContent>
         </Card>
       )}
+      
+      {/* CSV Data Preview Dialog */}
+      <Dialog open={selectedDataset !== null} onOpenChange={handleClosePreview}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>CSV Data Preview</DialogTitle>
+            <DialogDescription>
+              Viewing data from {selectedDataset?.fileName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedDataset && (
+            <CsvDataViewer 
+              datasetId={selectedDataset.id} 
+              datasetName={selectedDataset.name} 
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

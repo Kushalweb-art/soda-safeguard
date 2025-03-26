@@ -11,6 +11,7 @@ class CsvDatasetResponse(BaseModel):
     id: str
     name: str
     fileName: str
+    filePath: Optional[str] = None
     uploadedAt: str
     columns: List[str]
     rowCount: int

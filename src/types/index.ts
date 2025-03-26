@@ -27,6 +27,7 @@ export interface CsvDataset {
   id: string;
   name: string;
   fileName: string;
+  filePath?: string;
   uploadedAt: string;
   columns: string[];
   rowCount: number;
@@ -97,7 +98,7 @@ export interface ApiSchemaResponse {
   success: boolean;
   tables?: PostgresTable[];
   error?: string;
-  message?: string; // Added message property to fix the type error
+  message?: string;
 }
 
 // Component Props

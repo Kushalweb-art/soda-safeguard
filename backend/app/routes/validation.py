@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
@@ -7,6 +6,7 @@ from datetime import datetime
 import psycopg2
 import pandas as pd
 import json
+import os
 
 from app.database import get_db
 from app.models.validation import ValidationCheck, ValidationResult
@@ -288,9 +288,12 @@ async def run_csv_validation(db_session: Session, check: ValidationCheck) -> Dic
     if not dataset:
         raise ValueError("CSV dataset not found")
     
-    # In a real app, you'd read the actual CSV file
-    # For this implementation, we'll use the preview data as an example
-    preview_data = dataset.preview_data
+    # Make sure the file exists
+    if not os.path.exists(dataset.file_path):
+        raise ValueError(f"CSV file not found at: {dataset.file_path}")
+    
+    # Read the CSV file
+    df = pd.read_csv(dataset.file_path)
     
     # Initialize metrics
     start_time = datetime.now()
@@ -299,17 +302,22 @@ async def run_csv_validation(db_session: Session, check: ValidationCheck) -> Dic
     
     # Run validation based on check type
     if check.type == "missing_values":
-        # Check for missing values in the preview data
-        missing_in_preview = sum(1 for row in preview_data if not row.get(check.column))
-        # Extrapolate to the full dataset
-        estimated_missing = int((dataset.row_count * missing_in_preview) / len(preview_data)) if len(preview_data) > 0 else 0
+        # Check for missing values in the column
+        if check.column not in df.columns:
+            raise ValueError(f"Column '{check.column}' not found in CSV file")
         
-        threshold = (check.parameters.get("threshold", 0) * dataset.row_count) / 100
-        passed = estimated_missing <= threshold
+        # Count missing values
+        missing_count = df[check.column].isna().sum() + df[check.column].eq('').sum()
+        total_rows = len(df)
+        
+        # Check against threshold
+        threshold = (check.parameters.get("threshold", 0) * total_rows) / 100
+        passed = missing_count <= threshold
         
         # Get examples of rows with missing values
-        for row in preview_data:
-            if not row.get(check.column):
+        if not passed:
+            missing_rows = df[df[check.column].isna() | df[check.column].eq('')].head(10).to_dict('records')
+            for row in missing_rows:
                 row_dict = row.copy()
                 row_dict["_reason"] = f'Missing value in column "{check.column}"'
                 failed_rows.append(row_dict)
@@ -324,15 +332,54 @@ async def run_csv_validation(db_session: Session, check: ValidationCheck) -> Dic
             "column": check.column,
             "status": "passed" if passed else "failed",
             "metrics": {
-                "rowCount": dataset.row_count,
+                "rowCount": total_rows,
                 "executionTimeMs": execution_time,
-                "passedCount": dataset.row_count - estimated_missing,
-                "failedCount": estimated_missing
+                "passedCount": total_rows - missing_count,
+                "failedCount": missing_count
             },
             "failedRows": failed_rows if failed_rows else None
         }
     
-    # Add more validation types for CSV...
+    elif check.type == "unique_values":
+        # Check for unique values in the column
+        if check.column not in df.columns:
+            raise ValueError(f"Column '{check.column}' not found in CSV file")
+        
+        # Count duplicate values
+        total_rows = len(df)
+        duplicates = df[df.duplicated(subset=[check.column], keep=False)].groupby(check.column).size().reset_index(name='count')
+        
+        passed = len(duplicates) == 0
+        duplicate_count = sum(duplicates['count'] - 1) if not passed else 0
+        
+        # Get examples of rows with duplicate values
+        if not passed:
+            for _, row in duplicates.head(5).iterrows():
+                dup_value = row[check.column]
+                dup_rows = df[df[check.column] == dup_value].head(5).to_dict('records')
+                for dup_row in dup_rows:
+                    dup_row["_reason"] = f'Duplicate value in column "{check.column}": {dup_value}'
+                    failed_rows.append(dup_row)
+        
+        execution_time = (datetime.now() - start_time).total_seconds() * 1000
+        
+        return {
+            "id": f"result_{uuid.uuid4()}",
+            "checkId": check.id,
+            "checkName": check.name,
+            "dataset": check.dataset,
+            "column": check.column,
+            "status": "passed" if passed else "failed",
+            "metrics": {
+                "rowCount": total_rows,
+                "executionTimeMs": execution_time,
+                "passedCount": total_rows - duplicate_count,
+                "failedCount": duplicate_count
+            },
+            "failedRows": failed_rows if failed_rows else None
+        }
+    
+    # Add more validation types as needed...
     
     else:
         raise ValueError(f"Unsupported validation type: {check.type}")

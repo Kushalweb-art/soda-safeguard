@@ -2,13 +2,13 @@
 import { ApiResponse } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
-// API base URL - set to match exactly where your backend is running
+// API base URL - ensure this matches your backend server
 export const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 // Helper function to simulate API latency in development for smoother UX
 export const simulateLatency = async () => {
   if (process.env.NODE_ENV === 'development') {
-    const latency = 300 + Math.random() * 300; // Reduced latency for faster response
+    const latency = 500 + Math.random() * 500;
     return new Promise(resolve => setTimeout(resolve, latency));
   }
 };
@@ -34,87 +34,33 @@ export const fetchApi = async <T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> => {
   try {
-    // Only simulate latency in development to prevent extra delays
-    if (process.env.NODE_ENV === 'development') {
-      await simulateLatency();
-    }
+    await simulateLatency();
     
     const url = `${API_BASE_URL}${endpoint}`;
-    console.log(`Making API request to: ${url}`, {
-      method: options.method || 'GET',
-      headers: options.headers,
-    });
-    
-    // Set default timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    console.log(`Making API request to: ${url}`);
     
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      credentials: 'include', // Include credentials for cross-origin requests
-      signal: controller.signal,
       ...options,
     });
     
-    // Clear timeout
-    clearTimeout(timeoutId);
-    
-    console.log(`Response status from ${endpoint}:`, response.status);
-    
     if (!response.ok) {
-      let errorData;
-      try {
-        errorData = await response.json();
-      } catch (e) {
-        console.error('Could not parse error response:', e);
-        errorData = {};
-      }
-      
-      const errorMessage = errorData.error || `Error: ${response.status} ${response.statusText}`;
-      console.error(`API error (${response.status}):`, errorMessage);
-      
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`API error (${response.status}): ${errorData.error || response.statusText}`);
       return {
         success: false,
-        error: errorMessage,
+        error: errorData.error || `Error: ${response.status} ${response.statusText}`,
       };
     }
     
-    const contentType = response.headers.get('content-type');
-    let data;
-    
-    if (contentType && contentType.includes('application/json')) {
-      data = await response.json();
-    } else {
-      console.warn(`Response is not JSON. Content-Type: ${contentType}`);
-      data = { success: true };
-    }
-    
+    const data = await response.json();
     console.log(`API response from ${endpoint}:`, data);
     
     return data;
-  } catch (error: any) {
-    // Check if the error is an AbortError (timeout)
-    if (error.name === 'AbortError') {
-      console.error(`Request to ${endpoint} timed out`);
-      return {
-        success: false,
-        error: 'Request timed out. Please try again.',
-      };
-    }
-    
-    // Improved error logging for network errors
-    if (error.message && error.message.includes('Failed to fetch')) {
-      console.error(`Network error for ${endpoint}:`, error);
-      console.error(`API_BASE_URL is set to: ${API_BASE_URL}`);
-      return {
-        success: false,
-        error: `Network error. Please ensure the backend server is running at ${API_BASE_URL.split('/api')[0]}`,
-      };
-    }
-    
+  } catch (error) {
     console.error(`API call to ${endpoint} failed:`, error);
     return handleError(error);
   }

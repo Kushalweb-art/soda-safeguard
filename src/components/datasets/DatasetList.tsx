@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CsvDataset, PostgresConnection } from '@/types';
-import { Database, FileSpreadsheet, Calendar, Table, ArrowRight } from 'lucide-react';
+import { Database, FileSpreadsheet, Calendar, Table, ArrowRight, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -148,15 +148,27 @@ const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatas
                             )}
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-primary mt-3 p-0 h-auto"
-                          onClick={() => navigate(`/validation?datasetId=${dataset.id}&type=csv`)}
-                        >
-                          Validate this data
-                          <ArrowRight className="ml-1 h-3 w-3" />
-                        </Button>
+                        <div className="flex space-x-3 mt-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-primary p-0 h-auto"
+                            onClick={() => navigate(`/csv-validation?datasetId=${dataset.id}`)}
+                          >
+                            <CheckCircle className="mr-1 h-3 w-3" />
+                            Validate CSV
+                          </Button>
+                          
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-primary p-0 h-auto"
+                            onClick={() => navigate(`/validation?datasetId=${dataset.id}&type=csv`)}
+                          >
+                            Advanced Validation
+                            <ArrowRight className="ml-1 h-3 w-3" />
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   </motion.div>

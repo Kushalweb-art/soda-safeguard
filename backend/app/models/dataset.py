@@ -10,7 +10,7 @@ class CsvDataset(Base):
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     file_name = Column(String, nullable=False)
-    file_path = Column(String, nullable=False)  # Added file path to store physical location
+    file_path = Column(String, nullable=False)  # Stores the physical location of the file
     uploaded_at = Column(DateTime(timezone=True), default=func.now())
     columns = Column(JSON, nullable=False)
     row_count = Column(Integer, nullable=False)

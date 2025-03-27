@@ -6,6 +6,10 @@ export const fetchCsvDatasets = async (): Promise<ApiResponse<CsvDataset[]>> => 
   return fetchApi<CsvDataset[]>('/datasets/csv');
 };
 
+export const fetchCsvDatasetById = async (id: string): Promise<ApiResponse<CsvDataset>> => {
+  return fetchApi<CsvDataset>(`/datasets/csv/${id}`);
+};
+
 export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>> => {
   try {
     await simulateLatency();
@@ -52,6 +56,39 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
     return data;
   } catch (error) {
     console.error('CSV upload failed:', error);
+    return handleError(error);
+  }
+};
+
+// Analyze a CSV dataset to get statistics and recommendations for validation
+export const analyzeCsvDataset = async (datasetId: string): Promise<ApiResponse<any>> => {
+  try {
+    console.log(`Analyzing CSV dataset with ID: ${datasetId}`);
+    const url = `${API_BASE_URL}/datasets/csv/${datasetId}/analyze`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      const errorMessage = `Analysis error (${response.status}): ${response.statusText}`;
+      console.error(errorMessage);
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+    
+    const data = await response.json();
+    console.log('CSV analysis results:', data);
+    
+    return data;
+  } catch (error) {
+    console.error('CSV analysis failed:', error);
     return handleError(error);
   }
 };

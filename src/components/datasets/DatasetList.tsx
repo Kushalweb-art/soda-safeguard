@@ -1,21 +1,12 @@
-
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CsvDataset, PostgresConnection } from '@/types';
-import { Database, FileSpreadsheet, Calendar, Table, ArrowRight, Eye } from 'lucide-react';
+import { Database, FileSpreadsheet, Calendar, Table, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription
-} from '@/components/ui/dialog';
-import CsvDataViewer from './CsvDataViewer';
 
 interface DatasetListProps {
   postgresConnections: PostgresConnection[];
@@ -24,20 +15,15 @@ interface DatasetListProps {
 
 const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatasets }) => {
   const navigate = useNavigate();
-  const [selectedDataset, setSelectedDataset] = useState<CsvDataset | null>(null);
-  
-  const formatDate = (dateString: string) => {
-    return format(new Date(dateString), 'MMM d, yyyy');
-  };
-  
-  const handlePreviewClick = (dataset: CsvDataset) => {
-    setSelectedDataset(dataset);
-  };
-  
-  const handleClosePreview = () => {
-    setSelectedDataset(null);
-  };
-  
+
+  // Debugging: Log data in the console
+  useEffect(() => {
+    console.log("🟢 PostgreSQL Connections:", postgresConnections);
+    console.log("🟢 CSV Datasets:", csvDatasets);
+  }, [postgresConnections, csvDatasets]);
+
+  const formatDate = (dateString: string) => format(new Date(dateString), 'MMM d, yyyy');
+
   return (
     <div className="space-y-6">
       {postgresConnections.length > 0 || csvDatasets.length > 0 ? (
@@ -74,12 +60,10 @@ const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatas
                         <div className="text-sm text-muted-foreground mb-2">
                           <span className="font-medium text-foreground">Database:</span> {connection.database}
                         </div>
-                        
                         <div className="flex items-center text-xs text-muted-foreground mt-2">
                           <Calendar className="h-3 w-3 mr-1" />
                           Added {formatDate(connection.createdAt)}
                         </div>
-                        
                         {connection.tables && (
                           <div className="mt-3 pt-3 border-t">
                             <div className="flex items-center text-xs font-medium mb-2">
@@ -88,9 +72,7 @@ const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatas
                             </div>
                             <div className="flex flex-wrap gap-1">
                               {connection.tables.slice(0, 3).map((table) => (
-                                <span key={table.name} className="chip">
-                                  {table.name}
-                                </span>
+                                <span key={table.name} className="chip">{table.name}</span>
                               ))}
                               {connection.tables.length > 3 && (
                                 <span className="chip">+{connection.tables.length - 3} more</span>
@@ -98,7 +80,6 @@ const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatas
                             </div>
                           </div>
                         )}
-                        
                         <Button
                           variant="ghost"
                           size="sm"
@@ -115,7 +96,7 @@ const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatas
               </div>
             </div>
           )}
-          
+
           {csvDatasets.length > 0 && (
             <div className="mt-8">
               <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
@@ -148,50 +129,34 @@ const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatas
                         <div className="text-sm text-muted-foreground mb-2">
                           <span className="font-medium text-foreground">{dataset.rowCount.toLocaleString()}</span> rows
                         </div>
-                        
                         <div className="flex items-center text-xs text-muted-foreground mt-2">
                           <Calendar className="h-3 w-3 mr-1" />
                           Uploaded {formatDate(dataset.uploadedAt)}
                         </div>
-                        
                         <div className="mt-3 pt-3 border-t">
                           <div className="flex items-center text-xs font-medium mb-2">
                             <Table className="h-3 w-3 mr-1" />
                             Columns
                           </div>
                           <div className="flex flex-wrap gap-1">
-                            {dataset.columns.slice(0, 3).map((column) => (
-                              <span key={column} className="chip">
-                                {column}
-                              </span>
-                            ))}
-                            {dataset.columns.length > 3 && (
-                              <span className="chip">+{dataset.columns.length - 3} more</span>
+                            {Array.isArray(dataset.columns) ? (
+                              dataset.columns.slice(0, 3).map((column) => (
+                                <span key={column} className="chip">{column}</span>
+                              ))
+                            ) : (
+                              <span className="chip text-red-500">No columns available</span>
                             )}
                           </div>
                         </div>
-                        
-                        <div className="flex items-center gap-3 mt-3">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-primary p-0 h-auto"
-                            onClick={() => handlePreviewClick(dataset)}
-                          >
-                            <Eye className="h-3 w-3 mr-1" />
-                            Preview
-                          </Button>
-                          
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-primary p-0 h-auto"
-                            onClick={() => navigate(`/validation?datasetId=${dataset.id}&type=csv`)}
-                          >
-                            Validate
-                            <ArrowRight className="ml-1 h-3 w-3" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-primary mt-3 p-0 h-auto"
+                          onClick={() => navigate(`/validation?datasetId=${dataset.id}&type=csv`)}
+                        >
+                          Validate this data
+                          <ArrowRight className="ml-1 h-3 w-3" />
+                        </Button>
                       </CardContent>
                     </Card>
                   </motion.div>
@@ -203,35 +168,13 @@ const DatasetList: React.FC<DatasetListProps> = ({ postgresConnections, csvDatas
       ) : (
         <Card className="bg-muted/10 border border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="rounded-full bg-muted/20 p-3 mb-4">
-              <Database className="h-8 w-8 text-muted-foreground" />
-            </div>
             <h3 className="text-xl font-medium mb-2">No datasets available</h3>
             <p className="text-muted-foreground text-center max-w-md mb-6">
-              Upload a CSV file or connect to a PostgreSQL database to get started with data validation
+              Upload a CSV file or connect to a PostgreSQL database to get started with data validation.
             </p>
           </CardContent>
         </Card>
       )}
-      
-      {/* CSV Data Preview Dialog */}
-      <Dialog open={selectedDataset !== null} onOpenChange={handleClosePreview}>
-        <DialogContent className="max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>CSV Data Preview</DialogTitle>
-            <DialogDescription>
-              Viewing data from {selectedDataset?.fileName}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedDataset && (
-            <CsvDataViewer 
-              datasetId={selectedDataset.id} 
-              datasetName={selectedDataset.name} 
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

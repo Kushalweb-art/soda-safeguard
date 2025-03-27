@@ -1,6 +1,6 @@
 
 import { ApiResponse, ValidationCheck, ValidationResult } from '@/types';
-import { fetchApi, handleError } from './core';
+import { fetchApi, handleError, API_BASE_URL } from './core';
 
 export const fetchValidationChecks = async (): Promise<ApiResponse<ValidationCheck[]>> => {
   return fetchApi<ValidationCheck[]>('/validation/checks');
@@ -28,6 +28,9 @@ export const runValidation = async (checkId: string): Promise<ApiResponse<Valida
     }
     
     console.log('Validation started successfully, fetching results...');
+    
+    // Wait a moment for the validation to complete
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Get the latest validation results
     const resultsResponse = await fetchApi<ValidationResult[]>('/validation/results');

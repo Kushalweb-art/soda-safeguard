@@ -22,22 +22,26 @@ const Datasets = () => {
   
   const loadData = async () => {
     setLoading(true);
-    
-    const [connectionsResponse, datasetsResponse] = await Promise.all([
-      fetchPostgresConnections(),
-      fetchCsvDatasets(),
-    ]);
-    
-    if (connectionsResponse.success && connectionsResponse.data) {
-      setPostgresConnections(connectionsResponse.data);
+  
+    try {
+      const [connectionsResponse, datasetsResponse] = await Promise.all([
+        fetchPostgresConnections(),
+        fetchCsvDatasets(),
+      ]);
+  
+      console.log("Fetched PostgreSQL Connections:", connectionsResponse);
+      console.log("Fetched CSV Datasets:", datasetsResponse);
+  
+      setPostgresConnections(connectionsResponse.success ? connectionsResponse.data : []);
+      setCsvDatasets(datasetsResponse.success ? datasetsResponse.data : []);
+  
+    } catch (error) {
+      console.error("Error loading datasets:", error);
     }
-    
-    if (datasetsResponse.success && datasetsResponse.data) {
-      setCsvDatasets(datasetsResponse.data);
-    }
-    
+  
     setLoading(false);
   };
+
   
   const handleConnectionCreated = (connection: PostgresConnection) => {
     setPostgresConnections(prev => [connection, ...prev]);

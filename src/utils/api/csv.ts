@@ -1,20 +1,15 @@
 
 import { ApiResponse, CsvDataset } from '@/types';
-import { fetchApi, handleError, API_BASE_URL } from './core';
-import { toast } from '@/hooks/use-toast';
+import { fetchApi, simulateLatency, handleError, API_BASE_URL } from './core';
 
 export const fetchCsvDatasets = async (): Promise<ApiResponse<CsvDataset[]>> => {
-  try {
-    console.log('Fetching CSV datasets...');
-    return await fetchApi<CsvDataset[]>('/datasets/csv');
-  } catch (error) {
-    console.error('Error fetching CSV datasets:', error);
-    return handleError(error);
-  }
+  return fetchApi<CsvDataset[]>('/datasets/csv');
 };
 
 export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>> => {
   try {
+    await simulateLatency();
+    
     console.log(`Uploading CSV file: ${file.name} (${file.size} bytes)`);
     
     const formData = new FormData();
@@ -23,24 +18,17 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
     const url = `${API_BASE_URL}/datasets/csv/upload`;
     console.log(`Making upload request to: ${url}`);
     
-    // Create abort controller for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout for uploads
-    
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
+      // Adding these headers explicitly to ensure proper CORS handling
       headers: {
         'Accept': 'application/json',
+        // Don't set Content-Type with FormData as the browser will set it with the boundary
       },
+      // Include credentials if your API requires them
       credentials: 'include',
-      signal: controller.signal,
     });
-    
-    // Clear timeout
-    clearTimeout(timeoutId);
-    
-    console.log('Upload response status:', response.status);
     
     if (!response.ok) {
       let errorMessage = `Upload error (${response.status}): ${response.statusText}`;
@@ -52,12 +40,6 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
       }
       
       console.error(errorMessage);
-      toast({
-        title: 'Upload Failed',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-      
       return {
         success: false,
         error: errorMessage,
@@ -67,61 +49,9 @@ export const uploadCsvFile = async (file: File): Promise<ApiResponse<CsvDataset>
     const data = await response.json();
     console.log('CSV upload successful, response:', data);
     
-    toast({
-      title: 'Upload Successful',
-      description: `File ${file.name} was uploaded successfully.`,
-      variant: 'default',
-    });
-    
     return data;
-  } catch (error: any) {
-    // Check if the error is an AbortError (timeout)
-    if (error.name === 'AbortError') {
-      const errorMessage = 'Upload timed out. The file may be too large or the server is busy.';
-      console.error(errorMessage);
-      toast({
-        title: 'Upload Timeout',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-      
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-    
-    // Check if the error is related to connectivity
-    if (error.message && error.message.includes('Failed to fetch')) {
-      const errorMessage = 'Network error. Please check your connection and the backend server.';
-      console.error(errorMessage, error);
-      toast({
-        title: 'Connection Error',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-      
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-    
-    console.error('CSV upload failed:', error);
-    return handleError(error);
-  }
-};
-
-export const fetchCsvDatasetData = async (
-  datasetId: string,
-  limit: number = 100,
-  offset: number = 0
-): Promise<ApiResponse<{rows: any[], totalRows: number, columns: string[]}>> => {
-  try {
-    console.log(`Fetching CSV dataset data for ID: ${datasetId}, limit: ${limit}, offset: ${offset}`);
-    return await fetchApi<{rows: any[], totalRows: number, columns: string[]}>(`/datasets/csv/${datasetId}/data?limit=${limit}&offset=${offset}`);
   } catch (error) {
-    console.error('Error fetching CSV dataset data:', error);
+    console.error('CSV upload failed:', error);
     return handleError(error);
   }
 };
